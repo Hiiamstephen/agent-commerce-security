@@ -1,0 +1,29 @@
+# Local secrets and configuration
+.env
+.env.*
+!.env.example
+secrets/
+
+# Python and test artifacts
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Local runtime data and logs
+*.db
+*.sqlite
+*.sqlite3
+logs/
+*.log
+local-data/
+
+# Editor and operating-system noise
+.DS_Store
+.idea/
+.vscode/

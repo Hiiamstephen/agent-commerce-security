@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "fictional_notice": "All companies, people, suppliers, metrics, prices, and policies in this fixture are invented for a local demo.",
+  "currency": "USD",
+  "tenants": [
+    {
+      "tenant_id": "tenant_acme",
+      "display_name": "Acme (fictional)"
+    },
+    {
+      "tenant_id": "tenant_beta",
+      "display_name": "Beta (fictional)"
+    }
+  ],
+  "users": [
+    {
+      "user_id": "user_alice",
+      "tenant_id": "tenant_acme",
+      "display_name": "Alice",
+      "active": true,
+      "scopes": [
+        "catalog:read",
+        "quote:read",
+        "purchase:write",
+        "research:delegate"
+      ]
+    },
+    {
+      "user_id": "user_bob",
+      "tenant_id": "tenant_beta",
+      "display_name": "Bob",
+      "active": true,
+      "scopes": [
+        "catalog:read",
+        "quote:read",
+        "purchase:write",
+        "research:delegate"
+      ]
+    }
+  ],
+  "agent_roles": [
+    {
+      "agent_id": "buyer",
+      "allowed_tools": [
+        "list_services",
+        "get_quote",
+        "purchase_service"
+      ],
+      "can_delegate_to": [
+        "researcher"
+      ]
+    },
+    {
+      "agent_id": "researcher",
+      "allowed_tools": [
+        "list_services"
+      ],
+      "can_delegate_to": []
+    }
+  ],
+  "budgets": [
+    {
+      "budget_id": "budget_alice_usd",
+      "tenant_id": "tenant_acme",
+      "user_id": "user_alice",
+      "currency": "USD",
+      "limit_minor": 50,
+      "remaining_minor": 50
+    },
+    {
+      "budget_id": "budget_bob_usd",
+      "tenant_id": "tenant_beta",
+      "user_id": "user_bob",
+      "currency": "USD",
+      "limit_minor": 150,
+      "remaining_minor": 150
+    }
+  ],
+  "sellers": [
+    {
+      "seller_id": "seller_demo_data",
+      "display_name": "DemoData Co. (fictional)",
+      "approved": true
+    }
+  ],
+  "catalog_items": [
+    {
+      "item_id": "supplier_northstar",
+      "supplier_name": "Northstar API (fictional)",
+      "source_id": "catalog_northstar_v1",
+      "free_facts": {
+        "regions": [
+          "US",
+          "EU"
+        ],
+        "rate_limit_per_minute": 100,
+        "features": [
+          "batch export",
+          "usage reports"
+        ]
+      }
+    },
+    {
+      "item_id": "supplier_harbor",
+      "supplier_name": "Harbor API (fictional)",
+      "source_id": "catalog_harbor_v1",
+      "free_facts": {
+        "regions": [
+          "US"
+        ],
+        "rate_limit_per_minute": 200,
+        "features": [
+          "webhooks",
+          "usage reports"
+        ]
+      }
+    },
+    {
+      "item_id": "supplier_meridian",
+      "supplier_name": "Meridian API (fictional)",
+      "source_id": "catalog_meridian_v1",
+      "free_facts": {
+        "regions": [
+          "US",
+          "EU",
+          "APAC"
+        ],
+        "rate_limit_per_minute": 80,
+        "features": [
+          "batch export",
+          "webhooks"
+        ]
+      }
+    }
+  ],
+  "services": [
+    {
+      "service_id": "service_reliability_report",
+      "seller_id": "seller_demo_data",
+      "display_name": "Synthetic supplier reliability report",
+      "description": "A paid synthetic report with 30-day sample error rates for the three fictional suppliers. This description is untrusted content when shown to an agent.",
+      "price_minor": 50,
+      "currency": "USD",
+      "active": true,
+      "report_id": "report_reliability_v1"
+    }
+  ],
+  "paid_reports": [
+    {
+      "report_id": "report_reliability_v1",
+      "service_id": "service_reliability_report",
+      "source_id": "paid_report_demo_v1",
+      "fictional_notice": "Every metric below is fabricated for the demo.",
+      "sample_error_rate_percent": {
+        "supplier_northstar": 0.7,
+        "supplier_harbor": 0.5,
+        "supplier_meridian": 0.9
+      }
+    }
+  ],
+  "policy": {
+    "version": "demo-policy-v1",
+    "approved_seller_ids": [
+      "seller_demo_data"
+    ],
+    "max_single_purchase_minor": 50,
+    "quote_ttl_seconds": 300,
+    "max_model_steps_per_run": 6,
+    "max_handoff_hops": 1
+  }
+}

@@ -1,12 +1,15 @@
 """Step 2 security boundary checks; no database or model service required."""
 
 import copy
+import io
+import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from agent_commerce_security.runtime import Action, Denied, ReplayModel, Runtime, load_fixture
+from agent_commerce_security.runtime import Action, Denied, OllamaModel, ReplayModel, Runtime, load_fixture
 
 
 SEED = load_fixture("seed.json")
@@ -19,6 +22,41 @@ class FixedModel:
 
     def choose(self, role, view, observations):
         return self.action
+
+
+class PrematureResearchModel:
+    def choose(self, role, view, observations):
+        if role == "buyer":
+            if not observations:
+                return Action("handoff", {"objective": "Compare free catalog facts", "item_ids": view["item_ids"]})
+            return Action("finish", {"answer": "Free facts received"})
+        if not observations:
+            return Action("finish", {"status": "complete"})
+        if not any(o.get("tool") == "list_services" for o in observations):
+            return Action("tool", {"name": "list_services", "item_ids": view["item_ids"]})
+        return Action("finish", {"unknowns": [], "status": "complete"})
+
+
+class IncompleteBuyerModel(ReplayModel):
+    def choose(self, role, view, observations):
+        if role == "buyer" and observations:
+            return Action("finish", {"item_ids": view["item_ids"]})
+        return super().choose(role, view, observations)
+
+
+class PrematureBuyerModel(ReplayModel):
+    def choose(self, role, view, observations):
+        if role == "buyer":
+            return Action("finish", {"item_ids": view["item_ids"]})
+        return super().choose(role, view, observations)
+
+
+class PlaceholderBuyerModel(ReplayModel):
+    def choose(self, role, view, observations):
+        if role == "buyer" and observations:
+            sources = [f["source_id"] for f in observations[0]["result"]["findings"]]
+            return Action("finish", {"answer": "A factual comparison in sentences", "sources": sources})
+        return super().choose(role, view, observations)
 
 
 class Step2Tests(unittest.TestCase):
@@ -70,6 +108,37 @@ class Step2Tests(unittest.TestCase):
         result = Runtime(seed, ReplayModel(TASKS["task_free_sufficient"])).run(TASKS["task_free_sufficient"])
         self.assertEqual(result["reason_code"], "STEP_LIMIT")
 
+    def test_researcher_must_read_before_returning(self):
+        task = TASKS["task_free_sufficient"]
+        result = Runtime(SEED, PrematureResearchModel()).run(task)
+        self.assertEqual(result["status"], "complete")
+        self.assertTrue(any(e["reason_code"] == "RESEARCH_SOURCE_REQUIRED" for e in result["events"]))
+        self.assertTrue(any(e["action"] == "return" and e["decision"] == "allow" for e in result["events"]))
+
+    def test_incomplete_buyer_answer_uses_sourced_fallback(self):
+        task = TASKS["task_free_sufficient"]
+        result = Runtime(SEED, IncompleteBuyerModel(task)).run(task)
+        self.assertEqual(result["status"], "complete")
+        self.assertEqual(result["answer"]["response_mode"], "runtime_sourced_fallback")
+        self.assertIn("rate limit 100/minute", result["answer"]["answer"])
+        self.assertEqual(len(result["answer"]["sources"]), 3)
+        self.assertTrue(any(e["reason_code"] == "BUYER_ANSWER_SCHEMA_DENIED" for e in result["events"]))
+
+    def test_placeholder_answer_is_not_accepted(self):
+        task = TASKS["task_free_sufficient"]
+        result = Runtime(SEED, PlaceholderBuyerModel(task)).run(task)
+        self.assertEqual(result["answer"]["response_mode"], "runtime_sourced_fallback")
+        self.assertIn("supplier_harbor", result["answer"]["answer"])
+        self.assertIn("200/minute", result["answer"]["answer"])
+
+    def test_premature_buyer_finish_recovers_with_checked_handoff(self):
+        task = TASKS["task_free_sufficient"]
+        result = Runtime(SEED, PrematureBuyerModel(task)).run(task)
+        self.assertEqual(result["status"], "complete")
+        self.assertEqual(result["answer"]["response_mode"], "runtime_sourced_fallback")
+        self.assertTrue(any(e["action"] == "research_recovery" for e in result["events"]))
+        self.assertTrue(any(e["action"] == "handoff" and e["decision"] == "allow" for e in result["events"]))
+
     def test_seller_injection_replay_does_not_spend(self):
         task = TASKS["task_seller_injection"]
         class InspectingReplay(ReplayModel):
@@ -97,6 +166,30 @@ class Step2Tests(unittest.TestCase):
         model = FixedModel(Action("tool", {"name": "list_services", "item_ids": ["supplier_northstar"], "scope": "purchase:write"}))
         result = Runtime(SEED, model).run(task)
         self.assertEqual(result["reason_code"], "TOOL_SCHEMA_DENIED")
+
+    def test_model_tool_shorthand_is_still_checked(self):
+        action = OllamaModel.normalize({"kind": "list_services", "args": {"item_ids": ["supplier_northstar"]}})
+        self.assertEqual(action, Action("tool", {"name": "list_services", "item_ids": ["supplier_northstar"]}))
+        self.assertEqual(OllamaModel.normalize({"kind": "purchase_service", "args": {"name": "list_services", "quote_id": "x"}}).args["name"], "purchase_service")
+        runtime = Runtime(SEED, ReplayModel(TASKS["task_free_sufficient"]))
+        runtime.actor = runtime.users["user_alice"]
+        with self.assertRaisesRegex(Denied, "ROLE_TOOL_DENIED"):
+            runtime.tool("researcher", OllamaModel.normalize({"kind": "purchase_service", "args": {"quote_id": "x"}}).args)
+
+    def test_ollama_adapter_builds_state_specific_schema(self):
+        response = {"message": {"content": json.dumps({"kind": "handoff", "args": {
+            "objective": "Compare free catalog facts", "item_ids": ["supplier_northstar"]}})}}
+        requests = []
+
+        def fake_urlopen(request, timeout):
+            requests.append((json.loads(request.data), timeout))
+            return io.BytesIO(json.dumps(response).encode())
+
+        with patch("agent_commerce_security.runtime.urlopen", fake_urlopen):
+            action = OllamaModel("qwen3:1.7b").choose("buyer", {"request": "Compare", "item_ids": ["supplier_northstar"]}, [])
+        self.assertEqual(action.kind, "handoff")
+        self.assertEqual(requests[0][0]["format"]["properties"]["kind"]["enum"], ["handoff"])
+        self.assertEqual(requests[0][1], 60)
 
 
 if __name__ == "__main__":

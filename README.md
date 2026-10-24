@@ -20,7 +20,7 @@ No live payment processor or real customer information is involved.
 
 ## Status
 
-**Step 2 runtime implemented locally:** bounded buyer and read-only researcher roles, checked handoff and return, per-tool authorization, replay mode, a local Ollama adapter, and runtime traces. The live adapter has not been exercised because Ollama is not installed here. The API, persistent audit log, database migrations, real quotes, purchase flow, and evaluation harness are **not implemented yet**.
+**Step 2 complete locally:** bounded buyer and read-only researcher roles, checked handoff and return, per-tool authorization, replay mode, a local Ollama adapter, and runtime traces. A Qwen3 1.7B live run completed the free-data task in five steps with a sourced comparison and no purchase. Its answer used the runtime's labeled factual fallback because the small model did not produce a useful final comparison. The API, persistent audit log, database migrations, real quotes, purchase flow, and evaluation harness are **not implemented yet**.
 
 Read the project-local [architecture](docs/architecture.md), [data model](docs/data-model.md), and [threat model](docs/threat-model.md) for the design. The separate learning blueprint lives outside this repository; these files are the public-safe project source of truth.
 
@@ -56,7 +56,7 @@ python3 scripts/run_step2.py task_paid_needed
 python3 -m unittest discover -s tests -v
 ```
 
-Replay mode is deterministic. The free task returns a sourced research packet and an answer without a purchase. The paid task reaches the buyer's quote preview, then stops at `PURCHASE_NOT_IMPLEMENTED`; it cannot charge a budget. To try a local model, start an Ollama server with a model installed and run `python3 scripts/run_step2.py task_free_sufficient --ollama-model MODEL_NAME`. This uses JSON action outputs; model quality and tool-call reliability have not been measured.
+Replay mode is deterministic. The free task returns a sourced research packet and an answer without a purchase. The paid task reaches the buyer's quote preview, then stops at `PURCHASE_NOT_IMPLEMENTED`; it cannot charge a budget. To try a local model, start an Ollama server with a model installed and run `python3 scripts/run_step2.py task_free_sufficient --ollama-model MODEL_NAME --compact`. The adapter uses a state-specific JSON schema. If the buyer returns an incomplete answer, the runtime requests repair and may return a clearly labeled summary built from validated free facts. The observed Qwen3 1.7B run used that fallback; its successful completion does not establish consistent model answer quality.
 
 The runtime keeps user, tenant, scopes, and expiry outside model-visible context. It validates both handoff directions, rechecks each tool request, limits model steps and handoff hops, caps context size and elapsed time, and emits in-memory trace events. These checks use fixture users and scopes. Signed identity and durable audit storage belong to later milestones.
 

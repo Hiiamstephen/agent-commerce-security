@@ -20,7 +20,7 @@ No live payment processor or real customer information is involved.
 
 ## Status
 
-**Step 1 complete:** repository skeleton, domain fixtures, sample tasks, data-model contract, and threat assumptions. The agent loop, API, database migrations, purchase flow, and evaluation harness are **not implemented yet**.
+**Step 2 runtime implemented locally:** bounded buyer and read-only researcher roles, checked handoff and return, per-tool authorization, replay mode, a local Ollama adapter, and runtime traces. The live adapter has not been exercised because Ollama is not installed here. The API, persistent audit log, database migrations, real quotes, purchase flow, and evaluation harness are **not implemented yet**.
 
 Read the project-local [architecture](docs/architecture.md), [data model](docs/data-model.md), and [threat model](docs/threat-model.md) for the design. The separate learning blueprint lives outside this repository; these files are the public-safe project source of truth.
 
@@ -35,6 +35,7 @@ Read the project-local [architecture](docs/architecture.md), [data model](docs/d
 | `docs/threat-model.md` | Assets, attacker capabilities, controls, and limits. |
 | `scripts/validate_fixtures.py` | Standard-library check that seed and tasks are internally consistent. |
 | `src/agent_commerce_security/` | Application package for later milestones. |
+| `scripts/run_step2.py` | Run the bounded runtime in replay or local Ollama mode. |
 | `tests/` | Security and evaluation tests for later milestones. |
 
 ## Check the Step 1 fixtures
@@ -46,6 +47,18 @@ python3 scripts/validate_fixtures.py
 ```
 
 The check validates references, uniqueness, integer money values, role/tool limits, and the two core task expectations. It does **not** run an LLM or prove security behavior.
+
+## Run the Step 2 runtime
+
+```sh
+python3 scripts/run_step2.py task_free_sufficient
+python3 scripts/run_step2.py task_paid_needed
+python3 -m unittest discover -s tests -v
+```
+
+Replay mode is deterministic. The free task returns a sourced research packet and an answer without a purchase. The paid task reaches the buyer's quote preview, then stops at `PURCHASE_NOT_IMPLEMENTED`; it cannot charge a budget. To try a local model, start an Ollama server with a model installed and run `python3 scripts/run_step2.py task_free_sufficient --ollama-model MODEL_NAME`. This uses JSON action outputs; model quality and tool-call reliability have not been measured.
+
+The runtime keeps user, tenant, scopes, and expiry outside model-visible context. It validates both handoff directions, rechecks each tool request, limits model steps and handoff hops, caps context size and elapsed time, and emits in-memory trace events. These checks use fixture users and scopes. Signed identity and durable audit storage belong to later milestones.
 
 ## Decisions already made
 
@@ -59,7 +72,7 @@ The check validates references, uniqueness, integer money values, role/tool limi
 
 ## Next milestone
 
-Implement the bounded two-agent runtime harness, tool contracts, and authorized handoff. Keep the purchase tool as a non-spending stub until its policy and transaction work is implemented and tested.
+Implement signed identity, canonical quotes, purchase policy, and the atomic mock transaction. Then persist audit decisions and outbox events. Exercise a real model once a local Ollama model is available.
 
 ## Publication boundary
 

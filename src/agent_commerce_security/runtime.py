@@ -1,4 +1,4 @@
-"""Bounded two-role agent runtime. No payment or persistent identity is implemented here."""
+"""Bounded two-role agent runtime with optional durable commerce and audit."""
 
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ import time
 from typing import Protocol
 from urllib.request import Request, urlopen
 from uuid import uuid4
+
+from .commerce import CommerceService, SecurityError
 
 ROOT = Path(__file__).resolve().parents[2]
 MAX_CONTEXT_BYTES = 8_192
@@ -64,7 +66,8 @@ class ReplayModel:
         if self.task["task_id"] == "task_paid_needed":
             if not any(o.get("tool") == "get_quote" for o in observations):
                 return Action("tool", {"name": "get_quote", "service_id": "service_reliability_report"})
-            return Action("tool", {"name": "purchase_service", "quote_id": "not-yet-implemented"})
+            quote = next(o["result"] for o in observations if o.get("tool") == "get_quote")
+            return Action("tool", {"name": "purchase_service", "quote_id": quote["quote_id"] or "not-yet-implemented"})
         findings = observations[0]["result"]["findings"]
         return Action("finish", {"answer": catalog_summary(findings), "sources": [f["source_id"] for f in findings]})
 
@@ -138,7 +141,8 @@ class OllamaModel:
 
 
 class Runtime:
-    def __init__(self, seed: dict, model: Model, max_seconds: int = MAX_SECONDS):
+    def __init__(self, seed: dict, model: Model, max_seconds: int = MAX_SECONDS,
+                 commerce: CommerceService | None = None, bearer_token: str | None = None):
         self.seed = seed
         self.model = model
         self.users = {u["user_id"]: u for u in seed["users"]}
@@ -156,11 +160,23 @@ class Runtime:
         self.allowed_items: set[str] = set()
         self.grant_expires = datetime.now(timezone.utc)
         self.seller_description = seed["services"][0]["description"]
+        self.commerce = commerce
+        self.bearer_token = bearer_token
+        self.purchase_request_id = f"run_{self.run_id}"
 
     def record(self, role: str, action: str, decision: str, reason: str, parent: str | None = None) -> None:
-        self.events.append({"run_id": self.run_id, "trace_id": self.trace_id, "span_id": uuid4().hex,
-                            "parent_span_id": parent, "role": role, "action": action, "decision": decision,
-                            "reason_code": reason, "occurred_at": datetime.now(timezone.utc).isoformat()})
+        event = {"run_id": self.run_id, "trace_id": self.trace_id, "span_id": uuid4().hex,
+                 "parent_span_id": parent, "role": role, "action": action, "decision": decision,
+                 "reason_code": reason, "occurred_at": datetime.now(timezone.utc).isoformat()}
+        if self.commerce is not None and not (action in {"get_quote", "purchase_service"} and decision == "allow"):
+            try:
+                self.commerce.audit_decision(role, action, decision, reason, run_id=self.run_id,
+                                             trace_id=self.trace_id, span_id=event["span_id"],
+                                             parent_span_id=parent, tenant_id=self.actor.get("tenant_id"),
+                                             user_id=self.actor.get("user_id"))
+            except Exception as error:
+                raise Denied("AUDIT_UNAVAILABLE") from error
+        self.events.append(event)
 
     def limit(self) -> None:
         if time.monotonic() - self.started > self.max_seconds:
@@ -174,6 +190,13 @@ class Runtime:
             raise Denied("TIME_LIMIT")
         if role not in self.roles or tool not in self.roles[role]["allowed_tools"]:
             raise Denied("ROLE_TOOL_DENIED")
+        if self.commerce is not None:
+            try:
+                self.commerce.principal(self.bearer_token, TOOL_SCOPES[tool],
+                                        expected_tenant=self.actor["tenant_id"],
+                                        expected_user=self.actor["user_id"])
+            except SecurityError as error:
+                raise Denied(error.code) from error
         if TOOL_SCOPES[tool] not in self.actor["scopes"] or not self.actor["active"]:
             raise Denied("USER_SCOPE_DENIED")
         if datetime.now(timezone.utc) >= self.grant_expires:
@@ -198,15 +221,28 @@ class Runtime:
                 service_id = args.get("service_id")
                 if type(service_id) is not str or service_id not in self.services:
                     raise Denied("RESOURCE_DENIED")
-                service = self.services[service_id]
-                result = {"status": "preview_only", "service_id": service_id, "seller_id": service["seller_id"], "amount_minor": service["price_minor"], "currency": service["currency"], "quote_id": None}
+                if self.commerce is None:
+                    service = self.services[service_id]
+                    result = {"status": "preview_only", "service_id": service_id, "seller_id": service["seller_id"], "amount_minor": service["price_minor"], "currency": service["currency"], "quote_id": None}
+                else:
+                    result = self.commerce.quote(self.bearer_token, service_id, agent_role=role,
+                                                 run_id=self.run_id, trace_id=self.trace_id)
             else:
-                raise Denied("PURCHASE_NOT_IMPLEMENTED")
+                if self.commerce is None:
+                    raise Denied("PURCHASE_NOT_IMPLEMENTED")
+                result = self.commerce.purchase(self.bearer_token, args["quote_id"],
+                                                self.purchase_request_id, agent_role=role,
+                                                run_id=self.run_id, trace_id=self.trace_id)
             self.record(role, name, "allow", "OK")
             return result
         except Denied as error:
             self.record(role, str(name), "deny", error.code)
             raise
+        except SecurityError as error:
+            self.record(role, str(name), "deny", error.code)
+            raise Denied(error.code) from error
+        except Exception as error:
+            raise Denied("STORE_UNAVAILABLE") from error
 
     def return_gate(self, packet: dict, expected_parent: str) -> dict:
         try:
@@ -214,6 +250,12 @@ class Runtime:
                 raise Denied("TIME_LIMIT")
             if not self.actor["active"] or "research:delegate" not in self.actor["scopes"] or "catalog:read" not in self.actor["scopes"]:
                 raise Denied("RETURN_SCOPE_DENIED")
+            if self.commerce is not None:
+                try:
+                    self.commerce.principal(self.bearer_token, "research:delegate", self.actor["tenant_id"], self.actor["user_id"])
+                    self.commerce.principal(self.bearer_token, "catalog:read", self.actor["tenant_id"], self.actor["user_id"])
+                except SecurityError as error:
+                    raise Denied(error.code) from error
             if packet.get("run_id") != self.run_id or packet.get("tenant_id") != self.actor["tenant_id"] or packet.get("parent_span_id") != expected_parent or packet.get("sender") != "researcher":
                 raise Denied("RETURN_ORIGIN_DENIED")
             if datetime.now(timezone.utc).isoformat() >= packet.get("expires_at", ""):
@@ -244,6 +286,12 @@ class Runtime:
                 raise Denied("HANDOFF_LIMIT")
             if "research:delegate" not in self.actor["scopes"] or "catalog:read" not in self.actor["scopes"]:
                 raise Denied("HANDOFF_SCOPE_DENIED")
+            if self.commerce is not None:
+                try:
+                    self.commerce.principal(self.bearer_token, "research:delegate", self.actor["tenant_id"], self.actor["user_id"])
+                    self.commerce.principal(self.bearer_token, "catalog:read", self.actor["tenant_id"], self.actor["user_id"])
+                except SecurityError as error:
+                    raise Denied(error.code) from error
             ids = args.get("item_ids")
             if not isinstance(ids, list) or not ids or any(type(i) is not str for i in ids) or not set(ids) <= self.allowed_items:
                 raise Denied("RESOURCE_DENIED")
@@ -329,13 +377,28 @@ class Runtime:
                         return {"status": "purchase_deferred", "reason_code": error.code}
                     raise
                 observations.append({"tool": action.args["name"], "result": result})
+                if action.args["name"] == "purchase_service":
+                    rates = result["report"]["sample_error_rate_percent"]
+                    lowest = min(rates, key=rates.get)
+                    return {"status": "purchased", "answer": f"{lowest} has the lowest synthetic 30-day error rate ({rates[lowest]}%).",
+                            "sources": [result["source_id"]], "receipt": {key: result[key] for key in
+                            ("purchase_id", "quote_id", "amount_minor", "currency", "remaining_minor", "report_id")}}
             else:
                 self.record(role, action.kind, "deny", "ROLE_ACTION_DENIED")
                 raise Denied("ROLE_ACTION_DENIED")
 
     def run(self, task: dict) -> dict:
         try:
-            self.actor = self.users[task["actor_user_id"]]
+            if self.commerce is None:
+                self.actor = self.users[task["actor_user_id"]]
+            else:
+                try:
+                    principal = self.commerce.principal(self.bearer_token,
+                                                        expected_user=task["actor_user_id"])
+                except SecurityError as error:
+                    raise Denied(error.code) from error
+                self.actor = {"user_id": principal.user_id, "tenant_id": principal.tenant_id,
+                              "scopes": principal.scopes, "active": True}
             if not self.actor["active"]:
                 raise Denied("USER_INACTIVE")
             if task.get("requested_tenant_id", self.actor["tenant_id"]) != self.actor["tenant_id"]:
@@ -353,5 +416,10 @@ class Runtime:
             answer = self.run_role("buyer", {"request": task["request"], "item_ids": ids, "trust": "untrusted_task_text"})
             return {"status": "complete", "answer": answer, "events": self.events, "steps": self.steps, "run_id": self.run_id}
         except Denied as error:
-            self.record("runtime", "run", "deny", error.code)
-            return {"status": "denied", "reason_code": error.code, "events": self.events, "steps": self.steps, "run_id": self.run_id}
+            code = error.code
+            if code != "AUDIT_UNAVAILABLE":
+                try:
+                    self.record("runtime", "run", "deny", code)
+                except Denied:
+                    code = "AUDIT_UNAVAILABLE"
+            return {"status": "denied", "reason_code": code, "events": self.events, "steps": self.steps, "run_id": self.run_id}

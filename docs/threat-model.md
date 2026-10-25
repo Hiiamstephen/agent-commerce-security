@@ -1,6 +1,6 @@
-# Threat assumptions — Step 1
+# Threat assumptions — local demo
 
-This is a learning threat model for a **local, simulated** agent-commerce demo. It states what the later implementation and tests must defend. It does not claim that a finished system has passed these tests.
+This is a learning threat model for a **local, simulated** agent-commerce demo. It states what the implementation and tests defend. Passing the local checks does not establish production security.
 
 ## Assets to protect
 
@@ -26,7 +26,7 @@ An attacker can craft task or seller text, try to make a model call the wrong to
 
 The attacker cannot directly edit the database, alter the server's signing key, or control the trusted authorization code. Those require separate infrastructure and supply-chain testing outside this demo.
 
-## Controls we intend to demonstrate
+## Controls and local evidence
 
 | Threat | Planned control | Test evidence to collect |
 | --- | --- | --- |
@@ -46,4 +46,4 @@ Record run and trace IDs, parent/child span IDs, agent role, user and tenant ref
 
 ## Explicit limits
 
-This project does not use real payments, a production identity provider, a cloud deployment, or real customer records. It cannot establish universal prompt-injection resistance, legal compliance, or production-scale reliability. We will present only measured results from the demo and name any failing cases.
+This project does not use real payments, a production identity provider, a cloud deployment, or real customer records. The security event sink is a local database table, not an external monitoring platform. Passing local tests cannot establish universal prompt-injection resistance, legal compliance, or production-scale reliability. Only measured demo results are claimed.

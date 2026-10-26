@@ -101,6 +101,18 @@ def main() -> None:
             assert expected["handoff"] == "deny"
             assert expected["purchase_count"] == 0
 
+    for task_id, requirement in seed.get("task_requirements", {}).items():
+        assert task_id in tasks
+        allowed = requirement["allowed_purchase_service_ids"]
+        assert isinstance(allowed, list) and len(allowed) == len(set(allowed))
+        assert all(service_id in services for service_id in allowed)
+        service_id = requirement.get("required_report_service_id")
+        if service_id is not None:
+            assert service_id in allowed
+            assert services[service_id]["report_id"] == tasks[task_id]["expected"]["report_id"]
+        if tasks[task_id]["expected"]["purchase_count"] == 0:
+            assert not allowed
+
     assert tasks["task_paid_needed"]["expected"]["purchase_count"] == 1
     assert tasks["task_free_sufficient"]["expected"]["purchase_count"] == 0
     assert services["service_reliability_report"]["price_minor"] <= budgets["budget_alice_usd"]["remaining_minor"]

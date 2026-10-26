@@ -34,3 +34,5 @@ Protected metadata stays in the orchestrator: `run_id`, verified `tenant_id`, ve
 ## Fixture mapping
 
 `fixtures/seed.json` defines the fictional initial records, including a 50-cent Acme budget and one 50-cent paid report. It does **not** pre-create quotes, purchases, ledger entries, or audit events. Local runs create these as actions occur.
+
+The seed also holds trusted `task_requirements`. The paid error-rate task names the report service needed to answer it and grants that one service for purchase; free tasks grant no service. These requirements are not taken from a model response. The runtime rejects a free-catalog-only finish for the paid task and denies purchase proposals without a task-issued quote and service grant. The purchase service still decides whether an otherwise valid proposal may spend. A direct API caller currently has no signed task grant, which is a deployment boundary documented in the security benchmark contract.

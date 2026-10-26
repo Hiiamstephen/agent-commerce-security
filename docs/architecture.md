@@ -34,7 +34,7 @@ flowchart TD
 2. **Agent to agent:** trusted code checks the sending role, receiving role, user permission, tenant, task scope, expiry, and hop limit. It records allow/deny. Only a small sourced context packet reaches the receiving model.
 3. **Agent to tool:** every read, quote, and purchase request is checked again against current permission and the receiving agent's tool allowlist.
 4. **Untrusted seller content to model:** free descriptions may contain adversarial text. Treat it as data, label its source, and do not let it grant authority.
-5. **Proposal to purchase:** the buyer may propose a quote ID. Trusted code fetches the canonical quote and applies access, risk, and budget rules. The model cannot approve its own charge.
+5. **Proposal to purchase:** the buyer may propose a quote ID. The runtime requires a quote it issued during this task and a trusted task-level grant for that service. The purchase service fetches the canonical quote and applies access, risk, and budget rules. The model cannot approve its own charge. This task grant is currently enforced at the runtime boundary, not by a signed grant at the direct API.
 6. **Purchase to security evidence:** accepted purchase data, an audit decision, and an outbox event commit together. Allowed and denied handoffs and tool decisions are durable. The researcher uses the buyer handoff span as its parent; the resumed buyer uses the researcher return span. The worker may retry; stable event IDs make final event storage idempotent.
 
 ## Context management

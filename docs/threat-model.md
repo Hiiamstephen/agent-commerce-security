@@ -17,7 +17,7 @@ This is a learning threat model for a **local, simulated** agent-commerce demo. 
 | Buyer → researcher | Requested subtask and proposed context | Handoff gate checks user, tenant, recipient, allowed read scope, expiry, and hop count. |
 | Researcher → buyer | Findings, summaries, and seller text | Return gate checks packet origin/schema and keeps protected metadata outside model output. |
 | Agent → tool | Tool name and model-generated arguments | Tool gateway checks role allowlist, user authority, resource, and current policy on every call. |
-| Buyer → purchase | Quote ID, service ID, request ID | Purchase API re-reads canonical quote, checks risk and budget, and performs one atomic write. |
+| Buyer → purchase | Quote ID, service ID, request ID | Agent runtime checks a trusted task spend grant and its issued quote; purchase API re-reads canonical quote, checks risk and budget, and performs one atomic write. |
 | Outbox → event store | Duplicate or delayed delivery | Stable event ID and unique final event record. |
 
 ## Attacker capabilities assumed for tests
@@ -30,7 +30,7 @@ The attacker cannot directly edit the database, alter the server's signing key, 
 
 | Threat | Planned control | Test evidence to collect |
 | --- | --- | --- |
-| Seller prompt injection | Seller text remains untrusted; no authority comes from prompts. | Inject “ignore budget” text; backend still denies disallowed purchase. |
+| Seller prompt injection | Seller text remains untrusted; no authority comes from prompts. | Live corpus probes 12 payloads; a forced model spend on a free task is denied by the runtime grant. |
 | Agent privilege escalation | Effective permission = current user authority ∩ task grant ∩ recipient tool allowlist ∩ resource policy. | Researcher cannot call `purchase_service`; forged handoff is denied and traced. |
 | Cross-tenant read or purchase | Tenant derived from verified server context and checked at every boundary. | Alice cannot read or buy Beta's resource; zero charge. |
 | Context leakage or corruption | Protected metadata outside prompts; minimal sourced packet; schema, size, expiry, and origin checks. | Reject wrong-tenant/stale packet; preserve source IDs and uncertainty. |

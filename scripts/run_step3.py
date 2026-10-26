@@ -66,7 +66,7 @@ def main() -> None:
     result = Runtime(seed, model, max_seconds=180 if args.ollama_model else 30,
                      commerce=service, bearer_token=token).run(task)
     if not args.trace:
-        result = {key: result[key] for key in ("status", "reason_code", "answer", "steps") if key in result}
+        result = {key: result[key] for key in ("status", "reason_code", "request_id", "answer", "steps") if key in result}
     print(json.dumps(result, indent=2))
 
 

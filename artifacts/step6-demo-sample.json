@@ -1,0 +1,262 @@
+{
+  "status": "PASS",
+  "backend": "temporary SQLite",
+  "mode": "fixture_replay",
+  "checks": {
+    "free_complete_without_spend": true,
+    "paid_complete_one_charge": true,
+    "paid_handoff_and_return_linked": true,
+    "over_scoped_handoff_denied": true,
+    "same_request_one_charge": true,
+    "worker_crash_rolled_back": true,
+    "events_delivered_once": true,
+    "event_replay_deduplicated": true
+  },
+  "free": {
+    "run_id": "ea2efd57a7b14243be67fd3ae2e3313c",
+    "status": "complete",
+    "sources": [
+      "catalog_northstar_v1",
+      "catalog_harbor_v1",
+      "catalog_meridian_v1"
+    ],
+    "charges": 0,
+    "trace": {
+      "event_count": 8,
+      "trace_ids": [
+        "bcdf9b732e5046bba81337f8bbc73886"
+      ],
+      "parent_links": 6,
+      "events": [
+        {
+          "role": "buyer",
+          "action": "model_step",
+          "decision": "allow",
+          "reason_code": "handoff",
+          "span_id": "7069340214834851bf8ace62989dc5b9",
+          "parent_span_id": null
+        },
+        {
+          "role": "buyer",
+          "action": "handoff",
+          "decision": "allow",
+          "reason_code": "OK",
+          "span_id": "ad77706ef94f42b29bc3362d7cfeabba",
+          "parent_span_id": null
+        },
+        {
+          "role": "researcher",
+          "action": "model_step",
+          "decision": "allow",
+          "reason_code": "tool",
+          "span_id": "895f1a30fe6349fb86304dd4bffa626c",
+          "parent_span_id": "ad77706ef94f42b29bc3362d7cfeabba"
+        },
+        {
+          "role": "researcher",
+          "action": "list_services",
+          "decision": "allow",
+          "reason_code": "OK",
+          "span_id": "3b6374abfba84009acf36805a19f77d1",
+          "parent_span_id": "ad77706ef94f42b29bc3362d7cfeabba"
+        },
+        {
+          "role": "researcher",
+          "action": "model_step",
+          "decision": "allow",
+          "reason_code": "finish",
+          "span_id": "99131d52af0e45119a65e3fde39f04ce",
+          "parent_span_id": "ad77706ef94f42b29bc3362d7cfeabba"
+        },
+        {
+          "role": "researcher",
+          "action": "return_proposal",
+          "decision": "allow",
+          "reason_code": "SOURCED_FROM_TOOL",
+          "span_id": "c64efda90a164be8adf6e6e2bffa876d",
+          "parent_span_id": "ad77706ef94f42b29bc3362d7cfeabba"
+        },
+        {
+          "role": "researcher",
+          "action": "return",
+          "decision": "allow",
+          "reason_code": "OK",
+          "span_id": "da046dc42f1a43d8bfae59adc2daf533",
+          "parent_span_id": "ad77706ef94f42b29bc3362d7cfeabba"
+        },
+        {
+          "role": "buyer",
+          "action": "model_step",
+          "decision": "allow",
+          "reason_code": "finish",
+          "span_id": "b9e502da279e4ce2aefdaae0e7f07c0d",
+          "parent_span_id": "da046dc42f1a43d8bfae59adc2daf533"
+        }
+      ],
+      "handoff_allowed": true,
+      "researcher_return_allowed": true
+    }
+  },
+  "paid": {
+    "run_id": "187a4290f88e4410af5fd2a9a42e4442",
+    "status": "complete",
+    "answer": "supplier_harbor has the lowest synthetic 30-day error rate (0.5%).",
+    "source": [
+      "paid_report_demo_v1"
+    ],
+    "purchase_id": "2370b47f9a2642b5bb7984e2081c12fe",
+    "amount_minor": 50,
+    "remaining_minor": 0,
+    "trace": {
+      "event_count": 11,
+      "trace_ids": [
+        "bf1c93313d9f4f079de0c237dc6b6b82"
+      ],
+      "parent_links": 9,
+      "events": [
+        {
+          "role": "buyer",
+          "action": "model_step",
+          "decision": "allow",
+          "reason_code": "handoff",
+          "span_id": "4534eb99124b41c388d273c4cb49c135",
+          "parent_span_id": null
+        },
+        {
+          "role": "buyer",
+          "action": "handoff",
+          "decision": "allow",
+          "reason_code": "OK",
+          "span_id": "412b6180fd8a445098271435ce5b18fd",
+          "parent_span_id": null
+        },
+        {
+          "role": "researcher",
+          "action": "model_step",
+          "decision": "allow",
+          "reason_code": "tool",
+          "span_id": "8f7ba648361049c9aed3774963074be3",
+          "parent_span_id": "412b6180fd8a445098271435ce5b18fd"
+        },
+        {
+          "role": "researcher",
+          "action": "list_services",
+          "decision": "allow",
+          "reason_code": "OK",
+          "span_id": "1288ebf4fccb4fcc8ea397f87a7e3d32",
+          "parent_span_id": "412b6180fd8a445098271435ce5b18fd"
+        },
+        {
+          "role": "researcher",
+          "action": "model_step",
+          "decision": "allow",
+          "reason_code": "finish",
+          "span_id": "08dcfae8f06b4aaa86d772492f9641b9",
+          "parent_span_id": "412b6180fd8a445098271435ce5b18fd"
+        },
+        {
+          "role": "researcher",
+          "action": "return_proposal",
+          "decision": "allow",
+          "reason_code": "SOURCED_FROM_TOOL",
+          "span_id": "d70488c8da5a4f7d851b70a92e86cbcf",
+          "parent_span_id": "412b6180fd8a445098271435ce5b18fd"
+        },
+        {
+          "role": "researcher",
+          "action": "return",
+          "decision": "allow",
+          "reason_code": "OK",
+          "span_id": "ff99012090c24889802b09b6a5d2017b",
+          "parent_span_id": "412b6180fd8a445098271435ce5b18fd"
+        },
+        {
+          "role": "buyer",
+          "action": "model_step",
+          "decision": "allow",
+          "reason_code": "tool",
+          "span_id": "87fa5a17afdf4d55943f0e24fdcbff10",
+          "parent_span_id": "ff99012090c24889802b09b6a5d2017b"
+        },
+        {
+          "role": "buyer",
+          "action": "get_quote",
+          "decision": "allow",
+          "reason_code": "OK",
+          "span_id": "af3770a229e243d4a00b7e8e63b970a8",
+          "parent_span_id": "ff99012090c24889802b09b6a5d2017b"
+        },
+        {
+          "role": "buyer",
+          "action": "model_step",
+          "decision": "allow",
+          "reason_code": "tool",
+          "span_id": "4e6338dbb6894080a2c0fa205dce3b76",
+          "parent_span_id": "ff99012090c24889802b09b6a5d2017b"
+        },
+        {
+          "role": "buyer",
+          "action": "purchase_service",
+          "decision": "allow",
+          "reason_code": "OK",
+          "span_id": "4bda3eb43f954f04a7923b8e7c88e987",
+          "parent_span_id": "ff99012090c24889802b09b6a5d2017b"
+        }
+      ],
+      "handoff_allowed": true,
+      "researcher_return_allowed": true
+    }
+  },
+  "denied": {
+    "run_id": "90b4ee9e37774c7fb301d14fc75856d8",
+    "reason_code": "RESOURCE_DENIED",
+    "charges": 1,
+    "trace": {
+      "event_count": 3,
+      "trace_ids": [
+        "31121470b1a84a1fb84d51e23419aad9"
+      ],
+      "parent_links": 0,
+      "events": [
+        {
+          "role": "buyer",
+          "action": "model_step",
+          "decision": "allow",
+          "reason_code": "handoff",
+          "span_id": "0c7136c4941340268f41672f0d942f83",
+          "parent_span_id": null
+        },
+        {
+          "role": "buyer",
+          "action": "handoff",
+          "decision": "deny",
+          "reason_code": "RESOURCE_DENIED",
+          "span_id": "336cd1876cad497f836b91f82cece447",
+          "parent_span_id": null
+        },
+        {
+          "role": "runtime",
+          "action": "run",
+          "decision": "deny",
+          "reason_code": "RESOURCE_DENIED",
+          "span_id": "2bab9d57359a4bc69157558aeb00d6c2",
+          "parent_span_id": null
+        }
+      ],
+      "handoff_allowed": false,
+      "researcher_return_allowed": false
+    }
+  },
+  "retry": {
+    "same_purchase_id": true,
+    "charges": 1
+  },
+  "delivery": {
+    "crash_rolled_back": true,
+    "first_batch": 23,
+    "replay_batch": 23,
+    "audit_events": 23,
+    "final_events": 23
+  },
+  "live": null
+}

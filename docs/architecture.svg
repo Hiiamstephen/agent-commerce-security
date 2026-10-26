@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="title description">
+  <title id="title">Agent commerce security demo architecture</title>
+  <desc id="description">A signed demo user starts the buyer agent. The buyer delegates free research to a read-only researcher. Trusted runtime gates handoffs and tool calls. A checked mock purchase writes budget, ledger, and outbox in one transaction. A worker delivers deduplicated security events.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#29554a" stroke-width="1.7"/></marker>
+    <style>
+      .bg{fill:#f7faf7}.title{font:700 27px system-ui,sans-serif;fill:#19352e}.sub{font:14px system-ui,sans-serif;fill:#466359}
+      .model{fill:#fff4dc;stroke:#c38d2a;stroke-width:2}.trusted{fill:#e6f4eb;stroke:#317658;stroke-width:2}.data{fill:#eaf2fb;stroke:#49789e;stroke-width:2}
+      .head{font:700 18px system-ui,sans-serif;fill:#19352e}.body{font:14px system-ui,sans-serif;fill:#314b43}.small{font:12px system-ui,sans-serif;fill:#49645b}
+      .line{fill:none;stroke:#29554a;stroke-width:2.4;marker-end:url(#arrow)}.dash{fill:none;stroke:#8a6a30;stroke-width:2;stroke-dasharray:6 5;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="560" rx="18"/>
+  <text class="title" x="38" y="47">Buyer ↔ researcher → checked mock purchase → security evidence</text>
+  <text class="sub" x="38" y="72">Yellow: model roles and untrusted content · Green: trusted checks · Blue: local data and event store</text>
+
+  <rect class="data" x="38" y="123" width="178" height="112" rx="14"/>
+  <text class="head" x="58" y="153">Demo user</text><text class="body" x="58" y="178">Signed local token</text><text class="small" x="58" y="203">user · tenant · scopes</text>
+
+  <rect class="model" x="281" y="123" width="206" height="112" rx="14"/>
+  <text class="head" x="301" y="153">Buyer agent</text><text class="body" x="301" y="178">Proposes handoff, quote,</text><text class="body" x="301" y="199">and purchase actions</text>
+
+  <rect class="trusted" x="548" y="123" width="215" height="112" rx="14"/>
+  <text class="head" x="568" y="153">Handoff gate</text><text class="body" x="568" y="178">Checks role, tenant, scope,</text><text class="body" x="568" y="199">task, expiry, and packet</text>
+
+  <rect class="model" x="824" y="123" width="205" height="112" rx="14"/>
+  <text class="head" x="844" y="153">Researcher agent</text><text class="body" x="844" y="178">Read-only catalog tool</text><text class="small" x="844" y="203">Returns sourced facts</text>
+
+  <path class="line" d="M216 179 H278"/><path class="line" d="M487 179 H545"/><path class="line" d="M763 179 H821"/>
+  <path class="dash" d="M925 238 V256 H655 V238"/>
+  <text class="small" x="675" y="282">validated return packet</text>
+
+  <rect class="data" x="1050" y="123" width="120" height="112" rx="14"/>
+  <text class="head" x="1066" y="153">Catalog</text><text class="small" x="1066" y="177">Free facts</text><text class="small" x="1066" y="198">Seller text</text>
+  <path class="dash" d="M1050 179 H1032"/>
+
+  <rect class="trusted" x="281" y="325" width="206" height="127" rx="14"/>
+  <text class="head" x="301" y="355">Tool gateway</text><text class="body" x="301" y="380">Role allowlist and fresh</text><text class="body" x="301" y="401">user/task checks</text><text class="small" x="301" y="426">Agent action ≠ authority</text>
+
+  <rect class="trusted" x="548" y="325" width="215" height="127" rx="14"/>
+  <text class="head" x="568" y="355">Purchase policy</text><text class="body" x="568" y="380">Canonical quote, seller,</text><text class="body" x="568" y="401">risk, budget, retry key</text><text class="small" x="568" y="426">One atomic mock charge</text>
+
+  <rect class="data" x="824" y="325" width="205" height="127" rx="14"/>
+  <text class="head" x="844" y="355">Local database</text><text class="body" x="844" y="380">Purchase + ledger +</text><text class="body" x="844" y="401">audit + outbox</text><text class="small" x="844" y="426">PostgreSQL or SQLite</text>
+
+  <path class="line" d="M384 238 V322"/><path class="line" d="M487 388 H545"/><path class="line" d="M763 388 H821"/>
+  <text class="small" x="1047" y="255">read-only result</text>
+
+  <rect class="trusted" x="38" y="325" width="178" height="127" rx="14"/>
+  <text class="head" x="58" y="355">Runtime boundary</text><text class="body" x="58" y="380">Keeps credential and</text><text class="body" x="58" y="401">protected state out of</text><text class="body" x="58" y="422">model-visible context</text>
+  <path class="line" d="M216 388 H278"/>
+
+  <rect class="trusted" x="824" y="486" width="205" height="52" rx="13"/>
+  <text class="head" x="844" y="518">Outbox worker</text>
+  <rect class="data" x="1050" y="486" width="120" height="52" rx="13"/>
+  <text class="body" x="1066" y="509">Final security</text><text class="body" x="1066" y="527">events</text>
+  <path class="line" d="M926 452 V483"/><path class="line" d="M1029 512 H1047"/>
+  <text class="small" x="39" y="518">All purchases and events are synthetic. No real payment provider or external event sink.</text>
+</svg>

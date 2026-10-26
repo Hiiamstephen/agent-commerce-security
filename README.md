@@ -18,9 +18,23 @@ A human user at a fictional company asks a buyer agent to compare three fictiona
 
 No live payment processor or real customer information is involved.
 
+## Quickstart
+
+With Python 3.13 or newer, run from a fresh checkout:
+
+```sh
+python3 scripts/demo_step6.py
+```
+
+This package-free command uses a temporary SQLite database and prints the complete synthetic walkthrough. For PostgreSQL, Ollama, the 3–5 minute talk track, and expected results, use the [demo and setup guide](docs/demo-guide.md). The [architecture image](docs/architecture.svg) shows the trust boundaries.
+
+For a visual walkthrough, open [the interactive HTML demo](docs/demo-visualizer.html). It works as a standalone explanation with an illustrative sample. Run `python3 scripts/serve_demo_ui.py` and open `http://127.0.0.1:8765/` to generate a fresh isolated Python demo from the page; you can also import JSON from `python3 scripts/demo_step6.py --json`.
+
+The [Step 6 verification record](docs/step6-verification.md) lists the local demo, test, public-file, and fresh-checkout checks already run.
+
 ## Status
 
-**Steps 1–5 implemented locally:** the two-agent runtime, signed demo identity, checked mock purchase, PostgreSQL audit pipeline, and evaluation harness are in place. PostgreSQL is the app default; SQLite supports isolated evaluation. The original 14-case Step 5 fixture result passed on both databases; the expanded benchmark contains 19 control scenarios and a separate 12-payload live attack corpus. Repeated Qwen3 1.7B runs measure transaction and role invariants separately from task fidelity. The runtime assembles paid answers from purchased report data, and the original four free or injected-text runs used its sourced answer fallback. Their completion does not establish model-authored answer quality. This is a scoped local regression result, not a production security claim.
+**Steps 1–6 implemented locally:** the two-agent runtime, signed demo identity, checked mock purchase, PostgreSQL audit pipeline, evaluation harness, repeatable interview demo, and CI workflow are in place. PostgreSQL is the app default; SQLite supports isolated evaluation and the package-free quickstart. The original 14-case Step 5 fixture result passed on both databases; the expanded benchmark contains 19 control scenarios and a separate 12-payload live attack corpus. Repeated Qwen3 1.7B runs measure transaction and role invariants separately from task fidelity. The runtime assembles paid answers from purchased report data, and the original four free or injected-text runs used its sourced answer fallback. Their completion does not establish model-authored answer quality. This is a scoped local regression result, not a production security claim.
 
 Read the project-local [architecture](docs/architecture.md), [data model](docs/data-model.md), and [threat model](docs/threat-model.md) for the design. The separate learning blueprint lives outside this repository; these files are the public-safe project source of truth.
 
@@ -37,6 +51,8 @@ The [security benchmark contract](docs/security-benchmark-contract.md) defines t
 | `fixtures/seed.json` | Fictional tenants, users, agent roles, suppliers, seller, budget, and paid report. |
 | `fixtures/tasks.json` | Four starter scenarios with expected outcomes. |
 | `docs/architecture.md` | Human-readable flow and trust boundaries. |
+| `docs/architecture.svg` and `docs/demo-guide.md` | Architecture image and repeatable 3–5 minute interview walkthrough. |
+| `docs/demo-visualizer.html` and `scripts/serve_demo_ui.py` | Interactive stage-by-stage visualization and optional loopback demo runner. |
 | `docs/data-model.md` | Planned tables, keys, and invariants. |
 | `docs/threat-model.md` | Assets, attacker capabilities, controls, and limits. |
 | `scripts/validate_fixtures.py` | Standard-library check that seed and tasks are internally consistent. |
@@ -52,7 +68,9 @@ The [security benchmark contract](docs/security-benchmark-contract.md) defines t
 | `scripts/show_step4_evidence.py` | Inspect a run's trace links and final event delivery state. |
 | `scripts/run_step4_denied.py` | Generate a reviewable denied handoff with no mock charge. |
 | `scripts/reset_demo.py` | Restore only the dedicated PostgreSQL demo database to fictional seed state. |
-| `src/agent_commerce_security/evaluation.py` and `scripts/evaluate_step5.py` | Run 14 isolated attack and normal cases, optional repeated Ollama runs, and write measured results. |
+| `scripts/demo_step6.py` | Isolated free/paid/denied/retry/event-replay walkthrough; optional live Ollama task. |
+| `.github/workflows/ci.yml` and `scripts/check_public.py` | Automated test gate and tracked-file credential check. |
+| `src/agent_commerce_security/evaluation.py` and `scripts/evaluate_step5.py` | Run 19 isolated attack and normal cases, optional repeated Ollama runs, and write measured results. |
 | `artifacts/step5-*.json` and `docs/step5-*.md` | Raw evaluation observations, tables, and failure analysis. |
 | `tests/` | Runtime, purchase, event-pipeline, and paid-source regression checks. |
 
@@ -143,7 +161,7 @@ Set `ACS_POSTGRES_DSN` to override the default `dbname=agent_commerce_security_d
 
 ## Run the Step 5 evaluation
 
-The evaluator uses a fresh SQLite database per case unless given the dedicated PostgreSQL evaluation database. It scores attack-case controls, transaction and event invariants, and task fidelity separately. The answer grader checks expected fixture facts and sources; it is a text-coverage oracle, not a full semantic judge. It records charges, final event counts, latency, model calls, context payload size, reason codes, and traces. Only fixture quality and all security gates affect the CLI exit status; live task fidelity is reported separately because model output varies.
+The evaluator uses a fresh SQLite database per case unless given the dedicated PostgreSQL evaluation database. It scores attack-case controls, transaction and event invariants, and task fidelity separately. Runtime-generated answers are compared with a separate exact fixture oracle; novel model-written prose needs review. It records charges, final event counts, latency, model calls, context payload size, reason codes, and traces. Only fixture quality and all security gates affect the CLI exit status; live task fidelity is reported separately because model output varies.
 
 ```sh
 .venv/bin/python scripts/evaluate_step5.py --mode fixture
@@ -154,9 +172,9 @@ createdb agent_commerce_security_eval
 
 The PostgreSQL option refuses to clear any database not named `agent_commerce_security_eval`. The `createdb` command is needed only once. Live runs require Ollama running with the named model installed. See the [measured results](docs/step5-results.md) and [failure analysis](docs/step5-failure-analysis.md) before interpreting the scores.
 
-## Next milestone
+## Remaining boundaries
 
-Package the public repository with a clean quickstart, CI check, and repeatable interview demo. Production payments, identity providers, and external telemetry remain outside this local simulated project.
+Production payments, identity providers, and external telemetry remain outside this local simulated project. The live security benchmark still requires a complete release-sized model run and independent holdout review before its release gate can pass.
 
 ## Publication boundary
 

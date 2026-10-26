@@ -1,5 +1,7 @@
 # Architecture and user flow
 
+![Buyer, researcher, trusted purchase, and security-event flow](architecture.svg)
+
 ## Primary use case
 
 Alice is a human user at **Acme**, a fictional customer organization (a *tenant*). She asks a buyer agent to compare three fictional API suppliers. She may spend up to **50 US cents of simulated budget** on a paid specifications and reliability report if the free catalog cannot answer her question.

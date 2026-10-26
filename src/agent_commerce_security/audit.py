@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+from typing import Callable
 from uuid import uuid4
 
 
@@ -40,7 +41,8 @@ def record_event(store, event: dict) -> None:
             raise
 
 
-def deliver_outbox(store, batch_size: int = 100) -> int:
+def deliver_outbox(store, batch_size: int = 100,
+                   after_insert: Callable[[str], None] | None = None) -> int:
     """Copy pending events to the local sink; retries cannot create duplicates."""
     if not 1 <= batch_size <= 1000:
         raise ValueError("batch_size must be between 1 and 1000")
@@ -53,9 +55,19 @@ def deliver_outbox(store, batch_size: int = 100) -> int:
             rows = connection.execute(query, (batch_size,)).fetchall()
             for row in rows:
                 payload = json.loads(row["payload_json"])
-                connection.execute("INSERT OR IGNORE INTO security_events VALUES (?, ?, ?, ?, ?)",
-                                   (row["event_id"], row["event_type"], payload["trace_id"],
-                                    row["created_at"], row["payload_json"]))
+                inserted = connection.execute("INSERT OR IGNORE INTO security_events VALUES (?, ?, ?, ?, ?)",
+                                              (row["event_id"], row["event_type"], payload["trace_id"],
+                                               row["created_at"], row["payload_json"]))
+                if inserted.rowcount == 0:
+                    existing = connection.execute("SELECT event_type, trace_id, occurred_at, payload_json "
+                                                  "FROM security_events WHERE event_id = ?", (row["event_id"],)).fetchone()
+                    if existing is None or (existing["event_type"], existing["trace_id"],
+                                            existing["occurred_at"], existing["payload_json"]) != (
+                                                row["event_type"], payload["trace_id"],
+                                                row["created_at"], row["payload_json"]):
+                        raise ValueError("event ID conflicts with a different security event")
+                if after_insert is not None:
+                    after_insert(row["event_id"])
                 connection.execute("UPDATE outbox SET delivered_at = ? WHERE event_id = ?",
                                    (datetime.now(timezone.utc).isoformat(), row["event_id"]))
             connection.commit()

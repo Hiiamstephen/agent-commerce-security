@@ -4,13 +4,14 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import os
 from pathlib import Path
+import subprocess
 import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from agent_commerce_security.commerce import CommerceService, PostgresStore, SecurityError, TokenAuthority
 from agent_commerce_security.audit import deliver_outbox
-from agent_commerce_security.runtime import load_fixture
+from agent_commerce_security.runtime import Action, Runtime, load_fixture
 
 
 SEED = load_fixture("seed.json")
@@ -92,6 +93,43 @@ class PostgresStep3Tests(unittest.TestCase):
         with self.store.connect() as connection:
             self.assertEqual(connection.execute("SELECT COUNT(*) AS n FROM security_events").fetchone()["n"], 2)
             self.assertEqual(connection.execute("SELECT COUNT(*) AS n FROM mock_ledger").fetchone()["n"], 1)
+
+    def test_worker_process_crash_rolls_back_then_replays_once(self):
+        quote = self.service.quote(self.alice, "service_reliability_report")
+        self.service.purchase(self.alice, quote["quote_id"], "worker_crash")
+        code = ("import os, sys\n"
+                "from agent_commerce_security.audit import deliver_outbox\n"
+                "from agent_commerce_security.commerce import PostgresStore\n"
+                "deliver_outbox(PostgresStore(sys.argv[1]), after_insert=lambda _: os._exit(77))\n")
+        environment = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")}
+        crashed = subprocess.run([sys.executable, "-c", code, self.store.dsn],
+                                 env=environment, capture_output=True, timeout=10, check=False)
+        self.assertEqual(crashed.returncode, 77, crashed.stderr.decode())
+        with self.store.connect() as connection:
+            self.assertEqual(connection.execute("SELECT COUNT(*) AS n FROM security_events").fetchone()["n"], 0)
+            self.assertEqual(connection.execute("SELECT COUNT(*) AS n FROM outbox WHERE delivered_at IS NULL").fetchone()["n"], 2)
+        self.assertEqual(deliver_outbox(self.store), 2)
+        with self.store.connect() as connection:
+            connection.execute("UPDATE outbox SET delivered_at = NULL")
+        self.assertEqual(deliver_outbox(self.store), 2)
+        with self.store.connect() as connection:
+            self.assertEqual(connection.execute("SELECT COUNT(*) AS n FROM security_events").fetchone()["n"], 2)
+
+    def test_denied_handoff_is_durable_in_postgres(self):
+        class InvalidHandoff:
+            def choose(self, role, view, observations):
+                return Action("handoff", {"objective": "Read outside task", "item_ids": ["not_in_task"]})
+
+        task = next(task for task in load_fixture("tasks.json")["tasks"]
+                    if task["task_id"] == "task_free_sufficient")
+        result = Runtime(SEED, InvalidHandoff(), commerce=self.service, bearer_token=self.alice).run(task)
+        self.assertEqual(result["reason_code"], "RESOURCE_DENIED")
+        with self.store.connect() as connection:
+            denied = connection.execute("SELECT * FROM audit_events WHERE run_id = ? AND action = 'handoff' "
+                                        "AND decision = 'deny'", (result["run_id"],)).fetchone()
+            self.assertIsNotNone(denied)
+            self.assertEqual(denied["reason_code"], "RESOURCE_DENIED")
+            self.assertEqual(connection.execute("SELECT COUNT(*) AS n FROM mock_ledger").fetchone()["n"], 0)
 
 
 if __name__ == "__main__":

@@ -35,7 +35,7 @@ flowchart TD
 3. **Agent to tool:** every read, quote, and purchase request is checked again against current permission and the receiving agent's tool allowlist.
 4. **Untrusted seller content to model:** free descriptions may contain adversarial text. Treat it as data, label its source, and do not let it grant authority.
 5. **Proposal to purchase:** the buyer may propose a quote ID. Trusted code fetches the canonical quote and applies access, risk, and budget rules. The model cannot approve its own charge.
-6. **Purchase to security evidence:** accepted purchase data and an outbox event commit together. The worker may retry; stable event IDs make final event storage idempotent. Allowed and denied handoffs/tool decisions also need durable audit records.
+6. **Purchase to security evidence:** accepted purchase data, an audit decision, and an outbox event commit together. Allowed and denied handoffs and tool decisions are durable. The researcher uses the buyer handoff span as its parent; the resumed buyer uses the researcher return span. The worker may retry; stable event IDs make final event storage idempotent.
 
 ## Context management
 

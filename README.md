@@ -20,9 +20,11 @@ No live payment processor or real customer information is involved.
 
 ## Status
 
-**Step 3 and local audit delivery implemented:** signed demo tokens, current user and scope checks, stored quotes, seller and spending rules, and atomic simulated purchases are connected to the two-agent runtime and a loopback API. PostgreSQL is the default; SQLite remains a zero-dependency fallback. The purchase, budget update, mock ledger entry, audit decision, and outbox event commit together. A retrying local worker deduplicates final security events. PostgreSQL was verified on a running local server with a paid demo, a denied overspend, API requests, concurrency tests, and outbox replay. The evaluation harness is a later milestone. A Step 2 Qwen3 1.7B run completed the free-data task using the runtime's labeled factual fallback; the paid path has been exercised in replay mode.
+**Steps 3 and 4 implemented locally:** signed demo tokens, current user and scope checks, stored quotes, seller and spending rules, and atomic simulated purchases are connected to the two-agent runtime and a loopback API. PostgreSQL is the default; SQLite remains a zero-dependency fallback. Security decisions have durable trace and span IDs. Researcher events link to the buyer handoff, and the resumed buyer links to the researcher return. The purchase, budget update, mock ledger entry, audit decision, and outbox event commit together. A retrying local worker deduplicates final security events. PostgreSQL checks include a worker process crash before commit and a deliberate replay after delivery. The evaluation harness is a later milestone. A Step 2 Qwen3 1.7B run completed the free-data task using the runtime's labeled factual fallback; the paid path has been exercised in replay mode.
 
 Read the project-local [architecture](docs/architecture.md), [data model](docs/data-model.md), and [threat model](docs/threat-model.md) for the design. The separate learning blueprint lives outside this repository; these files are the public-safe project source of truth.
+
+The [Step 4 verification record](docs/step4-verification.md) gives a live run ID, trace links, crash and replay checks, and the remaining practical limits.
 
 ## Repository map
 
@@ -43,6 +45,8 @@ Read the project-local [architecture](docs/architecture.md), [data model](docs/d
 | `scripts/run_step3.py` | Run a signed, database-backed scenario. |
 | `scripts/serve_step3.py` and `scripts/issue_demo_token.py` | Serve the local API and issue a short-lived local test token. |
 | `src/agent_commerce_security/audit.py` and `scripts/deliver_outbox.py` | Persist audit decisions and deliver queued events with replay protection. |
+| `scripts/show_step4_evidence.py` | Inspect a run's trace links and final event delivery state. |
+| `scripts/run_step4_denied.py` | Generate a reviewable denied handoff with no mock charge. |
 | `scripts/reset_demo.py` | Restore only the dedicated PostgreSQL demo database to fictional seed state. |
 | `tests/` | Security and evaluation tests for later milestones. |
 
@@ -88,7 +92,21 @@ The local API handler and transaction have automated checks. The live API was ch
 
 ### Deliver security events
 
-Audit decisions are written to `audit_events` and queued in `outbox`. Allowed quotes and purchases write their audit row in the same transaction as the business change. Run `.venv/bin/python scripts/deliver_outbox.py --watch` in another terminal to deliver continuously, or omit `--watch` to process one batch. The worker retries failures and uses unique event IDs in `security_events`; replaying a previously delivered row does not create a duplicate. This is a local database sink, not an external security platform.
+Audit decisions are written to `audit_events` and queued in `outbox`. Allowed quotes and purchases write their audit row in the same transaction as the business change. Run `.venv/bin/python scripts/deliver_outbox.py --watch` in another terminal to deliver continuously, or omit `--watch` to process one batch. The worker retries failures and uses unique event IDs in `security_events`; replaying a previously delivered row does not create a duplicate. A duplicate ID with different content stops delivery for inspection. This is a local database sink, not an external security platform.
+
+Inspect the existing runs using the IDs in [Step 4 verification](docs/step4-verification.md) before resetting the database. To generate fresh Step 4 evidence, run:
+
+```sh
+.venv/bin/python scripts/reset_demo.py
+.venv/bin/python scripts/run_step3.py task_paid_needed --trace
+.venv/bin/python scripts/run_step4_denied.py
+.venv/bin/python scripts/deliver_outbox.py
+.venv/bin/python scripts/show_step4_evidence.py
+ACS_TEST_POSTGRES_DSN='dbname=agent_commerce_security_test' .venv/bin/python -m unittest discover -s tests -p 'test_step3_postgres.py' -v
+.venv/bin/python -m unittest discover -s tests -p 'test_step4.py' -v
+```
+
+The Step 4 checks verify linked buyer and researcher spans, a durable denied handoff, purchase and audit rollback together, a worker process crash before commit, and one final event per ID after replay. `reset_demo.py` deletes earlier fictional demo events in that dedicated database.
 
 ### Use PostgreSQL on your Mac
 

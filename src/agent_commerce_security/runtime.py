@@ -163,20 +163,24 @@ class Runtime:
         self.commerce = commerce
         self.bearer_token = bearer_token
         self.purchase_request_id = f"run_{self.run_id}"
+        self.role_parent_spans: dict[str, str | None] = {"buyer": None, "researcher": None}
 
-    def record(self, role: str, action: str, decision: str, reason: str, parent: str | None = None) -> None:
-        event = {"run_id": self.run_id, "trace_id": self.trace_id, "span_id": uuid4().hex,
-                 "parent_span_id": parent, "role": role, "action": action, "decision": decision,
+    def record(self, role: str, action: str, decision: str, reason: str,
+               parent: str | None = None, span_id: str | None = None) -> dict:
+        parent_span = parent if parent is not None else self.role_parent_spans.get(role)
+        event = {"run_id": self.run_id, "trace_id": self.trace_id, "span_id": span_id or uuid4().hex,
+                 "parent_span_id": parent_span, "role": role, "action": action, "decision": decision,
                  "reason_code": reason, "occurred_at": datetime.now(timezone.utc).isoformat()}
         if self.commerce is not None and not (action in {"get_quote", "purchase_service"} and decision == "allow"):
             try:
                 self.commerce.audit_decision(role, action, decision, reason, run_id=self.run_id,
                                              trace_id=self.trace_id, span_id=event["span_id"],
-                                             parent_span_id=parent, tenant_id=self.actor.get("tenant_id"),
+                                             parent_span_id=parent_span, tenant_id=self.actor.get("tenant_id"),
                                              user_id=self.actor.get("user_id"))
             except Exception as error:
                 raise Denied("AUDIT_UNAVAILABLE") from error
         self.events.append(event)
+        return event
 
     def limit(self) -> None:
         if time.monotonic() - self.started > self.max_seconds:
@@ -204,6 +208,7 @@ class Runtime:
 
     def tool(self, role: str, args: dict) -> dict:
         name = args.get("name") if isinstance(args, dict) else None
+        tool_span = uuid4().hex
         try:
             if name not in TOOL_SCOPES:
                 raise Denied("UNKNOWN_TOOL")
@@ -226,14 +231,18 @@ class Runtime:
                     result = {"status": "preview_only", "service_id": service_id, "seller_id": service["seller_id"], "amount_minor": service["price_minor"], "currency": service["currency"], "quote_id": None}
                 else:
                     result = self.commerce.quote(self.bearer_token, service_id, agent_role=role,
-                                                 run_id=self.run_id, trace_id=self.trace_id)
+                                                 run_id=self.run_id, trace_id=self.trace_id,
+                                                 span_id=tool_span,
+                                                 parent_span_id=self.role_parent_spans.get(role))
             else:
                 if self.commerce is None:
                     raise Denied("PURCHASE_NOT_IMPLEMENTED")
                 result = self.commerce.purchase(self.bearer_token, args["quote_id"],
                                                 self.purchase_request_id, agent_role=role,
-                                                run_id=self.run_id, trace_id=self.trace_id)
-            self.record(role, name, "allow", "OK")
+                                                run_id=self.run_id, trace_id=self.trace_id,
+                                                span_id=tool_span,
+                                                parent_span_id=self.role_parent_spans.get(role))
+            self.record(role, name, "allow", "OK", span_id=tool_span)
             return result
         except Denied as error:
             self.record(role, str(name), "deny", error.code)
@@ -270,7 +279,8 @@ class Runtime:
                     raise Denied("RETURN_SOURCE_DENIED")
             if len(json.dumps(result).encode()) > MAX_RESULT_BYTES:
                 raise Denied("RETURN_TOO_LARGE")
-            self.record("researcher", "return", "allow", "OK", expected_parent)
+            returned = self.record("researcher", "return", "allow", "OK", expected_parent)
+            self.role_parent_spans["buyer"] = returned["span_id"]
             return result
         except Denied as error:
             self.record("researcher", "return", "deny", error.code, expected_parent)
@@ -305,8 +315,9 @@ class Runtime:
             self.record("buyer", "handoff", "deny", error.code)
             raise
         self.hops += 1
-        self.record("buyer", "handoff", "allow", "OK")
-        parent = self.events[-1]["span_id"]
+        handoff_event = self.record("buyer", "handoff", "allow", "OK")
+        parent = handoff_event["span_id"]
+        self.role_parent_spans["researcher"] = parent
         result = self.run_role("researcher", view)
         packet = {"run_id": self.run_id, "tenant_id": self.actor["tenant_id"], "parent_span_id": parent,
                   "sender": "researcher", "expires_at": self.grant_expires.isoformat(), "result": result}

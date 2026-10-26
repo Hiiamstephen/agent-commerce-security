@@ -252,16 +252,19 @@ class CommerceService:
         return Principal(claims.user_id, user["tenant_id"], scopes)
 
     def quote(self, token: str, service_id: str, *, agent_role: str = "buyer",
-              run_id: str | None = None, trace_id: str | None = None) -> dict:
+              run_id: str | None = None, trace_id: str | None = None,
+              span_id: str | None = None, parent_span_id: str | None = None) -> dict:
         try:
-            return self._quote(token, service_id, agent_role=agent_role, run_id=run_id, trace_id=trace_id)
+            return self._quote(token, service_id, agent_role=agent_role, run_id=run_id,
+                               trace_id=trace_id, span_id=span_id, parent_span_id=parent_span_id)
         except SecurityError as error:
             self.audit_decision(agent_role, "get_quote", "deny", error.code,
-                                run_id=run_id, trace_id=trace_id)
+                                run_id=run_id, trace_id=trace_id, parent_span_id=parent_span_id)
             raise
 
     def _quote(self, token: str, service_id: str, *, agent_role: str,
-               run_id: str | None, trace_id: str | None) -> dict:
+               run_id: str | None, trace_id: str | None,
+               span_id: str | None, parent_span_id: str | None) -> dict:
         if agent_role != "buyer":
             raise SecurityError("ROLE_TOOL_DENIED")
         principal = self.principal(token, "quote:read")
@@ -281,7 +284,8 @@ class CommerceService:
                 connection.execute("INSERT INTO quotes VALUES (?, ?, ?, ?, ?, ?, ?, ?)", tuple(quote.values()))
                 append_event(connection, new_event(agent_role, "get_quote", "allow", "OK", run_id=run_id,
                                                    trace_id=trace_id, tenant_id=principal.tenant_id,
-                                                   user_id=principal.user_id))
+                                                   user_id=principal.user_id, span_id=span_id,
+                                                   parent_span_id=parent_span_id))
                 connection.commit()
             except Exception:
                 connection.rollback()
@@ -289,17 +293,20 @@ class CommerceService:
         return {key: quote[key] for key in ("quote_id", "service_id", "amount_minor", "currency", "expires_at")}
 
     def purchase(self, token: str, quote_id: str, request_id: str, *, agent_role: str = "buyer",
-                 run_id: str | None = None, trace_id: str | None = None) -> dict:
+                 run_id: str | None = None, trace_id: str | None = None,
+                 span_id: str | None = None, parent_span_id: str | None = None) -> dict:
         try:
             return self._purchase(token, quote_id, request_id, agent_role=agent_role,
-                                  run_id=run_id, trace_id=trace_id)
+                                  run_id=run_id, trace_id=trace_id,
+                                  span_id=span_id, parent_span_id=parent_span_id)
         except SecurityError as error:
             self.audit_decision(agent_role, "purchase_service", "deny", error.code,
-                                run_id=run_id, trace_id=trace_id)
+                                run_id=run_id, trace_id=trace_id, parent_span_id=parent_span_id)
             raise
 
     def _purchase(self, token: str, quote_id: str, request_id: str, *, agent_role: str,
-                  run_id: str | None, trace_id: str | None) -> dict:
+                  run_id: str | None, trace_id: str | None,
+                  span_id: str | None, parent_span_id: str | None) -> dict:
         if agent_role != "buyer":
             raise SecurityError("ROLE_TOOL_DENIED")
         principal = self.principal(token, "purchase:write")
@@ -322,7 +329,8 @@ class CommerceService:
                     receipt = json.loads(existing["receipt_json"])
                     append_event(connection, new_event(agent_role, "purchase_service", "allow", "IDEMPOTENT_REPLAY",
                                                        run_id=run_id, trace_id=trace_id,
-                                                       tenant_id=principal.tenant_id, user_id=principal.user_id))
+                                                       tenant_id=principal.tenant_id, user_id=principal.user_id,
+                                                       span_id=span_id, parent_span_id=parent_span_id))
                     connection.commit()
                     return {**receipt, "idempotent_replay": True}
                 quote_query = "SELECT * FROM quotes WHERE quote_id = ?"
@@ -372,7 +380,8 @@ class CommerceService:
                                     -quote["amount_minor"], quote["currency"]))
                 append_event(connection, new_event(agent_role, "purchase_service", "allow", "OK",
                                                    run_id=run_id, trace_id=trace_id,
-                                                   tenant_id=principal.tenant_id, user_id=principal.user_id))
+                                                   tenant_id=principal.tenant_id, user_id=principal.user_id,
+                                                   span_id=span_id, parent_span_id=parent_span_id))
                 connection.commit()
                 return receipt
             except Exception:
